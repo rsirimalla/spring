@@ -154,7 +154,7 @@ cd notification-service && mvn clean package
 cd order-service
 mvn spring-boot:run
 
-# Terminal 2: Notification Service (runs on port 8081)
+# Terminal 2: Notification Service (runs on port 8083)
 cd notification-service
 mvn spring-boot:run
 ```
@@ -176,6 +176,41 @@ curl -X POST http://localhost:8082/api/orders \
 Check the logs - you should see:
 - **Order Service**: "Order event published successfully"
 - **Notification Service**: "EMAIL: Order Confirmation"
+
+## Quick Reference
+
+### Essential Commands
+```bash
+# Start all infrastructure
+docker-compose up -d
+
+# Build project (with SDKMAN)
+source "$HOME/.sdkman/bin/sdkman-init.sh"
+mvn clean install
+
+# Run services (in separate terminals)
+cd order-service && mvn spring-boot:run -Dspring-boot.run.arguments="--server.port=8082"
+cd notification-service && mvn spring-boot:run
+
+# Test API
+curl -X POST http://localhost:8082/api/orders \
+  -H "Content-Type: application/json" \
+  -d '{"customerId":"CUST001","customerEmail":"test@example.com","productName":"MacBook Pro","quantity":1,"totalAmount":2499.99}'
+
+# View Kafka UI
+open http://localhost:8080
+
+# Stop everything
+docker-compose down
+```
+
+### Monitoring
+- **Kafka UI**: http://localhost:8080 - View topics, messages, consumer groups
+- **H2 Console**: http://localhost:8082/h2-console - View order database
+  - JDBC URL: `jdbc:h2:mem:orderdb`
+  - Username: `sa`
+  - Password: (empty)
+- **Schema Registry**: http://localhost:8081/subjects - View registered Avro schemas
 
 ## What You'll Learn
 
@@ -210,33 +245,101 @@ Check the logs - you should see:
 ✅ Consumer groups for scalability
 ✅ OAuth/SASL authentication
 
+## Port Assignments
+
+- **8080**: Kafka UI (monitoring and management)
+- **8081**: Schema Registry
+- **8082**: Order Service REST API
+- **8083**: Notification Service
+- **9092**: Kafka broker (external)
+- **5432**: PostgreSQL
+
 ## Notes
 
 - **Kafka KRaft Mode**: This tutorial uses KRaft mode (Kafka without Zookeeper), the modern recommended approach for Kafka 2.8+
 - **H2 Database**: Order Service uses H2 in-memory database by default. Switch to PostgreSQL for production (config in `application.yml`)
-- **Ports**: Order Service runs on 8082, Notification Service on 8081, Kafka UI on 8080
+- **Port Configuration**: Notification Service runs on 8083 (not 8081) to avoid conflicts with Schema Registry
 
 ## Troubleshooting
 
-**Service won't start?**
-```bash
-# Check if port is in use
-lsof -i :8082
-lsof -i :8081
+### Common Issues and Fixes
 
-# Check Docker services
-docker-compose ps
-docker-compose logs kafka
+**1. Kafka Container Won't Start (macOS Docker)**
+
+If Kafka fails with permission errors on volume writes:
+```bash
+# Symptom: "Permission denied" in Kafka logs
+docker-compose logs kafka | grep "Permission denied"
+
+# Fix: Add user configuration to docker-compose.yml
+# Under the kafka service, add:
+kafka:
+  user: "0:0"  # Run as root for macOS Docker volume permissions
+
+# Then restart:
+docker-compose down
+docker volume rm spring_kafka-data
+docker-compose up -d
 ```
 
-**Maven build fails?**
+**2. Schema Registry Timeout on First Request**
+
+The first API call may timeout when registering the Avro schema:
 ```bash
-# Ensure Maven is available
+# Symptom: "Register operation timed out; error code: 50002"
+
+# This is normal behavior - just retry the request
+# Subsequent calls will succeed once schema is registered
+curl -X POST http://localhost:8082/api/orders -H "Content-Type: application/json" -d '{...}'
+```
+
+**3. Service Won't Start - Port Already in Use**
+
+```bash
+# Check if ports are in use
+lsof -i :8082  # Order Service
+lsof -i :8083  # Notification Service
+lsof -i :8080  # Kafka UI
+
+# If order-service doesn't read port from application.yml:
+cd order-service
+mvn spring-boot:run -Dspring-boot.run.arguments="--server.port=8082"
+```
+
+**4. Maven Not Found**
+
+```bash
+# Ensure Maven is available (installed via SDKMAN)
 source "$HOME/.sdkman/bin/sdkman-init.sh"
 mvn -version
 
 # Clean rebuild
 mvn clean install -U
+```
+
+**5. Schema Registry Configuration Missing**
+
+If you see "Could not resolve placeholder 'spring.kafka.properties.schema.registry.url'":
+```yaml
+# Ensure both services have this in application.yml:
+spring:
+  kafka:
+    properties:
+      schema.registry.url: ${SCHEMA_REGISTRY_URL:http://localhost:8081}
+```
+
+**6. Check Docker Services**
+
+```bash
+# View all running services
+docker-compose ps
+
+# Check logs for specific service
+docker-compose logs kafka
+docker-compose logs schema-registry
+
+# Restart all services
+docker-compose restart
 ```
 
 ## Next Steps

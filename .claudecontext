@@ -1,0 +1,193 @@
+# Spring Boot Microservices Learning Project
+
+## Project Purpose
+This is a learning repository focused on building production-ready Spring Boot microservices with emphasis on:
+- REST API development with Spring Boot 3.2+
+- Confluent Kafka integration with pub/sub patterns
+- OAuth 2.0 / SASL authentication for Kafka
+- Apache Avro serialization with Schema Registry
+- Production-ready patterns (error handling, retry logic, DLQ)
+
+## Architecture
+Two-service microservices architecture demonstrating event-driven communication:
+
+1. **order-service** (Port 8082)
+   - REST API for order management
+   - Spring Data JPA with H2/PostgreSQL
+   - Kafka producer publishing order events
+   - Avro serialization for messages
+
+2. **notification-service** (Port 8083)
+   - Kafka consumer listening to order-events topic
+   - Manual acknowledgment for reliability
+   - Retry logic and Dead Letter Queue (DLQ) handling
+   - Sends notifications (email/SMS/push)
+   - NOTE: Changed from 8081 to 8083 to avoid conflict with Schema Registry
+
+## Technology Stack
+- Java 17+
+- Spring Boot 3.2.x
+- Spring Data JPA
+- Spring Kafka
+- Confluent Kafka 7.5.0 (KRaft mode - no Zookeeper)
+- Schema Registry with Apache Avro
+- OAuth 2.0 / SASL for authentication
+- PostgreSQL / H2 database
+- Maven (multi-module project)
+- Docker Compose for local infrastructure
+
+## Key Directories
+```
+/                           # Root - multi-module Maven project
+├── order-service/          # REST API + Kafka Producer
+│   ├── src/main/java/com/example/order/
+│   │   ├── controller/     # REST endpoints
+│   │   ├── service/        # Business logic
+│   │   ├── repository/     # JPA repositories
+│   │   ├── model/          # JPA entities and DTOs
+│   │   └── kafka/          # Kafka producer config
+│   └── src/main/resources/
+│       ├── application.yml # Service configuration
+│       └── avro/           # Avro schema files
+│
+├── notification-service/   # Kafka Consumer
+│   ├── src/main/java/com/example/notification/
+│   │   ├── kafka/          # Kafka consumer and config
+│   │   └── service/        # Notification business logic
+│   └── src/main/resources/
+│       ├── application.yml # Consumer configuration
+│       └── avro/           # Avro schema files (shared)
+│
+├── docs/                   # Tutorial documentation
+│   ├── GET_STARTED.md     # Quick start guide
+│   ├── SETUP.md           # Environment setup with SDKMAN
+│   └── TESTING.md         # API testing examples
+│
+└── docker-compose.yml      # Kafka, Schema Registry, PostgreSQL, Kafka UI
+```
+
+## Development Patterns
+
+### Kafka Configuration
+- **Producer**: Async publishing with callbacks, Avro serialization
+- **Consumer**: Manual acknowledgment, consumer groups, error handling
+- **Schema Registry**: Centralized Avro schema management at http://localhost:8081
+- **Authentication**: OAuth 2.0 / SASL (configured for Confluent Cloud compatibility)
+
+### Database
+- H2 in-memory database (default for order-service)
+- PostgreSQL available via docker-compose for production-like setup
+- Switch via application.yml configuration
+
+### Error Handling
+- Input validation with @Valid annotations
+- Global exception handlers with @ExceptionHandler
+- Retry logic for transient failures
+- Dead Letter Queue (DLQ) for failed messages
+
+### Message Serialization
+- Apache Avro for schema evolution
+- Schema Registry for version management
+- Avro schemas in src/main/resources/avro/
+- Generated Java classes via Maven plugin
+
+## Port Assignments
+- 8080: Kafka UI (monitoring)
+- 8081: Schema Registry
+- 8082: Order Service REST API
+- 8083: Notification Service
+- 9092: Kafka broker (external)
+- 5432: PostgreSQL
+
+## Common Commands
+
+### Start Infrastructure
+```bash
+docker-compose up -d
+```
+
+### Build Project
+```bash
+mvn clean install              # Build all modules
+cd order-service && mvn package
+cd notification-service && mvn package
+```
+
+### Run Services
+```bash
+cd order-service && mvn spring-boot:run
+cd notification-service && mvn spring-boot:run
+```
+
+### Create Order (Test API)
+```bash
+curl -X POST http://localhost:8082/api/orders \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customerId": "CUST001",
+    "customerEmail": "test@example.com",
+    "productName": "MacBook Pro",
+    "quantity": 1,
+    "totalAmount": 2499.99
+  }'
+```
+
+## Important Notes & Local Setup Fixes
+- This is a LEARNING project - focus is on understanding patterns, not production deployment
+- Kafka uses modern KRaft mode (no Zookeeper dependency)
+- Avro schemas must be kept in sync between producer and consumer
+- OAuth configuration is prepared for Confluent Cloud but uses PLAINTEXT locally
+- Services use different ports to avoid conflicts (order: 8082, notification: 8083)
+
+### Local Setup - Known Issues & Fixes
+
+**1. Docker Kafka Volume Permissions (macOS)**
+The Kafka container needs root permissions for volume writes on macOS:
+```yaml
+# docker-compose.yml - Add to kafka service:
+kafka:
+  user: "0:0"  # Required for macOS Docker volume permissions
+```
+
+**2. Schema Registry Configuration**
+Both services require `spring.kafka.properties.schema.registry.url` in application.yml:
+```yaml
+# In both order-service and notification-service application.yml:
+spring:
+  kafka:
+    properties:
+      schema.registry.url: ${SCHEMA_REGISTRY_URL:http://localhost:8081}
+```
+
+**3. Maven Requires SDKMAN Sourcing**
+Maven is installed via SDKMAN and needs to be sourced:
+```bash
+source "$HOME/.sdkman/bin/sdkman-init.sh"
+mvn clean install
+```
+
+**4. Port Override May Be Needed**
+If order-service doesn't read port from application.yml:
+```bash
+cd order-service
+mvn spring-boot:run -Dspring-boot.run.arguments="--server.port=8082"
+```
+
+**5. First API Call May Timeout**
+The first order creation may timeout when registering Avro schema with Schema Registry. This is normal - subsequent calls will succeed once the schema is registered.
+
+## Typical Development Workflow
+1. Modify Avro schema if needed (both services must update)
+2. Run `mvn clean install` to regenerate Avro classes
+3. Implement business logic in service/controller layers
+4. Update application.yml for configuration changes
+5. Test locally with docker-compose infrastructure
+6. Check Kafka UI (http://localhost:8080) to monitor messages
+
+## Code Conventions
+- Package structure: com.example.{service-name}.{layer}
+- Layers: controller, service, repository, model, kafka
+- Use Spring annotations: @Service, @Repository, @RestController
+- Validation: Use @Valid with Jakarta Bean Validation
+- Error handling: Centralized exception handlers
+- Configuration: Externalized in application.yml

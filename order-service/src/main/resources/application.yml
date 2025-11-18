@@ -50,12 +50,15 @@ spring:
     
     # Kafka Security Configuration for Confluent Cloud (OAuth)
     properties:
+      # Schema Registry URL (required for Avro serialization)
+      schema.registry.url: ${SCHEMA_REGISTRY_URL:http://localhost:8081}
+
       # Uncomment for Confluent Cloud with OAuth:
       # security.protocol: SASL_SSL
       # sasl.mechanism: OAUTHBEARER
       # sasl.jaas.config: org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required clientId='${OAUTH_CLIENT_ID}' clientSecret='${OAUTH_CLIENT_SECRET}' scope='${OAUTH_SCOPE}';
       # sasl.login.callback.handler.class: org.apache.kafka.common.security.oauthbearer.secured.OAuthBearerLoginCallbackHandler
-      
+
       # Or for API Key authentication:
       # security.protocol: SASL_SSL
       # sasl.mechanism: PLAIN
