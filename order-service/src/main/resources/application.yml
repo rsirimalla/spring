@@ -1,0 +1,76 @@
+spring:
+  application:
+    name: order-service
+  
+  # Database Configuration
+  datasource:
+    url: jdbc:h2:mem:orderdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: 
+    # For PostgreSQL (Production):
+    # url: jdbc:postgresql://localhost:5432/orderdb
+    # driver-class-name: org.postgresql.Driver
+    # username: postgres
+    # password: your_password
+  
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+  
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+  # Kafka Producer Configuration
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: io.confluent.kafka.serializers.KafkaAvroSerializer
+      acks: all
+      retries: 3
+      properties:
+        # Schema Registry Configuration
+        schema.registry.url: ${SCHEMA_REGISTRY_URL:http://localhost:8081}
+        
+        # For Confluent Cloud with OAuth (uncomment and configure):
+        # basic.auth.credentials.source: USER_INFO
+        # basic.auth.user.info: ${SCHEMA_REGISTRY_API_KEY}:${SCHEMA_REGISTRY_API_SECRET}
+        
+        # Enable idempotence for exactly-once semantics
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+    
+    # Kafka Security Configuration for Confluent Cloud (OAuth)
+    properties:
+      # Uncomment for Confluent Cloud with OAuth:
+      # security.protocol: SASL_SSL
+      # sasl.mechanism: OAUTHBEARER
+      # sasl.jaas.config: org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required clientId='${OAUTH_CLIENT_ID}' clientSecret='${OAUTH_CLIENT_SECRET}' scope='${OAUTH_SCOPE}';
+      # sasl.login.callback.handler.class: org.apache.kafka.common.security.oauthbearer.secured.OAuthBearerLoginCallbackHandler
+      
+      # Or for API Key authentication:
+      # security.protocol: SASL_SSL
+      # sasl.mechanism: PLAIN
+      # sasl.jaas.config: org.apache.kafka.common.security.plain.PlainLoginModule required username='${KAFKA_API_KEY}' password='${KAFKA_API_SECRET}';
+
+server:
+  port: 8082
+
+# Application Specific Configuration
+kafka:
+  topics:
+    order-events: order-events
+    
+logging:
+  level:
+    com.example.order: DEBUG
+    org.springframework.kafka: INFO
+    org.apache.kafka: WARN

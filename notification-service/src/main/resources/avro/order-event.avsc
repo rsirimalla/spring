@@ -1,0 +1,61 @@
+{
+  "type": "record",
+  "name": "OrderEvent",
+  "namespace": "com.example.avro",
+  "doc": "Order event schema for Kafka messages",
+  "fields": [
+    {
+      "name": "orderId",
+      "type": "string",
+      "doc": "Unique order identifier"
+    },
+    {
+      "name": "customerId",
+      "type": "string",
+      "doc": "Customer identifier"
+    },
+    {
+      "name": "customerEmail",
+      "type": "string",
+      "doc": "Customer email for notifications"
+    },
+    {
+      "name": "productName",
+      "type": "string",
+      "doc": "Product name"
+    },
+    {
+      "name": "quantity",
+      "type": "int",
+      "doc": "Order quantity"
+    },
+    {
+      "name": "totalAmount",
+      "type": "double",
+      "doc": "Total order amount"
+    },
+    {
+      "name": "status",
+      "type": {
+        "type": "enum",
+        "name": "OrderStatus",
+        "symbols": ["CREATED", "CONFIRMED", "SHIPPED", "DELIVERED", "CANCELLED"]
+      },
+      "doc": "Order status"
+    },
+    {
+      "name": "eventTimestamp",
+      "type": "long",
+      "doc": "Event timestamp in milliseconds"
+    },
+    {
+      "name": "eventType",
+      "type": {
+        "type": "enum",
+        "name": "EventType",
+        "symbols": ["ORDER_CREATED", "ORDER_UPDATED", "ORDER_CANCELLED"]
+      },
+      "doc": "Type of order event"
+    }
+  ]
+}
